@@ -175,7 +175,7 @@
         tryStream();
         // התחל סריקה מיידית
         detect();
-        autoInterval = setInterval(detect, 30000);
+        autoInterval = setInterval(detect, 10000);
       }
       updatePlayBtn();
     }
@@ -188,34 +188,38 @@
 
     function setVolume(v) { audio.volume = parseFloat(v); }
 
+    let lastSongTitle = null;
+
     async function detect() {
-      setStatus('מזהה שיר…');
-      document.getElementById('songTitle').textContent = 'LIVE';
-      document.getElementById('songLinks').innerHTML = '';
-      document.getElementById('songTitle').className = 'song-live';
-      document.getElementById('songArtist').textContent = '';
       try {
-        const res = await fetch('https://kan88-proxy-production.up.railway.app/detect');
+        const res = await fetch('https://www.kan.org.il/api/arc-cloud/get-live-track-data?channelId=4');
         const data = await res.json();
-        if (data.status?.code === 0 && data.metadata?.music?.length) {
-          const track = data.metadata.music[0];
-          if (track.score >= 75) {
-            const spotifyId = track.external_metadata?.spotify?.track?.id || null;
-            const spotifyUrl = spotifyId ? `https://open.spotify.com/track/${spotifyId}` : `https://open.spotify.com/search/${encodeURIComponent(track.title + " " + (track.artists?.[0]?.name || ""))}`;
-            const youtubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(track.title + " " + (track.artists?.[0]?.name || ""))}`;
-            const appleMusicUrl = `https://music.apple.com/search?term=${encodeURIComponent(track.title + " " + (track.artists?.[0]?.name || ""))}`;
-            showSong(track.title, track.artists?.map(a => a.name).join(", ") || "", spotifyUrl, youtubeUrl, appleMusicUrl);
-          } else {
-            setStatus("לא ניתן לזהות שיר כעת.", "error");
-            document.getElementById("songTitle").textContent = "LIVE";
-            document.getElementById("songTitle").className = "song-live";
-            document.getElementById("songLinks").innerHTML = "";
+        if (data.title && data.title !== lastSongTitle) {
+          lastSongTitle = data.title;
+          const title = data.title;
+          const artist = data.artists?.join(', ') || '';
+          const searchQuery = encodeURIComponent(`${title} ${artist}`);
+          const spotifyUrl = `https://open.spotify.com/search/${searchQuery}`;
+          const youtubeUrl = `https://www.youtube.com/results?search_query=${searchQuery}`;
+          const appleMusicUrl = `https://music.apple.com/search?term=${searchQuery}`;
+
+          // חפש Spotify ID אם יש token
+          let spotifyId = null;
+          if (spotifyToken) {
+            try {
+              const sRes = await fetch(`${PROXY}/spotify/search?token=${encodeURIComponent(spotifyToken)}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
+              const sData = await sRes.json();
+              if (sData.id) spotifyId = sData.id;
+            } catch (e) {}
           }
-        } else {
-          setStatus("לא זוהה שיר.", "error");
-          document.getElementById("songTitle").textContent = "LIVE";
-          document.getElementById("songTitle").className = "song-live";
-          document.getElementById("songLinks").innerHTML = "";
+
+          showSong(title, artist, spotifyId ? `https://open.spotify.com/track/${spotifyId}` : spotifyUrl, youtubeUrl, appleMusicUrl, spotifyId);
+        } else if (!data.title) {
+          document.getElementById('songTitle').textContent = 'LIVE';
+          document.getElementById('songTitle').className = 'song-live';
+          document.getElementById('songArtist').textContent = '';
+          document.getElementById('songLinks').innerHTML = '';
+          lastSongTitle = null;
         }
       } catch (e) {
         setStatus('שגיאה בזיהוי.', 'error');
@@ -224,7 +228,7 @@
 
 
 
-    function showSong(title, artist, spotifyUrl, youtubeUrl, appleMusicUrl) {
+    function showSong(title, artist, spotifyUrl, youtubeUrl, appleMusicUrl, spotifyId = null) {
       const titleEl = document.getElementById('songTitle');
       titleEl.textContent = title;
       titleEl.className = 'song-title';
@@ -239,7 +243,7 @@
       const now = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
       const last = songHistory[0];
       if (!last || last.title !== title) {
-        songHistory.unshift({ title, artist, spotifyId: spotifyUrl?.includes('track/') ? spotifyUrl.split('track/')[1] : null, time: now });
+        songHistory.unshift({ title, artist, spotifyId, time: now });
         renderHistory();
       }
     }
