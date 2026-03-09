@@ -286,14 +286,14 @@
     }
 
     async function savePlaylist() {
-      const selected = songHistory.filter(s => s.selected && s.spotifyId);
-      if (!selected.length) {
-        setStatus('בחר לפחות שיר אחד עם מזהה ספוטיפיי.', 'error');
-        return;
-      }
       if (!spotifyToken) {
         pendingPlaylist = true;
         window.open(`${PROXY}/spotify/login`, 'spotify-login', 'width=500,height=700');
+        return;
+      }
+      const selected = songHistory.filter(s => s.selected && s.spotifyId);
+      if (!selected.length) {
+        setStatus('בחר לפחות שיר אחד עם מזהה ספוטיפיי.', 'error');
         return;
       }
       const trackIds = selected.map(s => s.spotifyId);
