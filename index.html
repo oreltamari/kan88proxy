@@ -120,13 +120,28 @@
     let autoInterval = null;
     const songHistory = [];
     let spotifyToken = null;
+    let pendingPlaylist = false;
 
-    // בדוק אם חזרנו מ-Spotify OAuth
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('spotify_token')) {
-      spotifyToken = urlParams.get('spotify_token');
-      window.history.replaceState({}, '', '/');
-    }
+    // קבל token מ-Spotify popup
+    window.addEventListener('message', async (e) => {
+      if (e.data?.spotify_token) {
+        spotifyToken = e.data.spotify_token;
+        setStatus('מחובר לספוטיפיי, מחפש שירים…', 'success');
+        // עדכן Spotify ID לכל השירים בהיסטוריה
+        for (const song of songHistory) {
+          if (!song.spotifyId) {
+            try {
+              const sRes = await fetch(`${PROXY}/spotify/search?token=${encodeURIComponent(spotifyToken)}&title=${encodeURIComponent(song.title)}&artist=${encodeURIComponent(song.artist)}`);
+              const sData = await sRes.json();
+              if (sData.id) song.spotifyId = sData.id;
+            } catch (e) {}
+          }
+        }
+        renderHistory();
+        setStatus('מחובר לספוטיפיי ✓', 'success');
+        if (pendingPlaylist) { pendingPlaylist = false; savePlaylist(); }
+      }
+    });
 
     function setStatus(msg, type = '') {
       const el = document.getElementById('statusBar');
@@ -277,7 +292,8 @@
         return;
       }
       if (!spotifyToken) {
-        window.location.href = `${PROXY}/spotify/login`;
+        pendingPlaylist = true;
+        window.open(`${PROXY}/spotify/login`, 'spotify-login', 'width=500,height=700');
         return;
       }
       const trackIds = selected.map(s => s.spotifyId);
