@@ -140,7 +140,7 @@
           for (const song of songHistory) {
             if (!song.spotifyId) {
               try {
-                const sRes = await fetch(`${PROXY}/spotify/search?token=${encodeURIComponent(spotifyToken)}&title=${encodeURIComponent(song.title)}&artist=${encodeURIComponent(song.artist)}`);
+                const sRes = await fetch(`${PROXY}/spotify/search?title=${encodeURIComponent(song.title)}&artist=${encodeURIComponent(song.artist)}`);
                 const sData = await sRes.json();
                 if (sData.id) song.spotifyId = sData.id;
               } catch (e) {}
@@ -228,15 +228,13 @@
           const youtubeUrl = `https://www.youtube.com/results?search_query=${searchQuery}`;
           const appleMusicUrl = `https://music.apple.com/search?term=${searchQuery}`;
 
-          // חפש Spotify ID אם יש token
+          // Search for Spotify ID (no user token needed)
           let spotifyId = null;
-          if (spotifyToken) {
-            try {
-              const sRes = await fetch(`${PROXY}/spotify/search?token=${encodeURIComponent(spotifyToken)}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
-              const sData = await sRes.json();
-              if (sData.id) spotifyId = sData.id;
-            } catch (e) {}
-          }
+          try {
+            const sRes = await fetch(`${PROXY}/spotify/search?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
+            const sData = await sRes.json();
+            if (sData.id) spotifyId = sData.id;
+          } catch (e) {}
 
           showSong(title, artist, spotifyId ? `https://open.spotify.com/track/${spotifyId}` : spotifyUrl, youtubeUrl, appleMusicUrl, spotifyId);
         } else if (!data.title) {
