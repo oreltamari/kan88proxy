@@ -122,26 +122,36 @@
     let spotifyToken = null;
     let pendingPlaylist = false;
 
-    // קבל token מ-Spotify popup
-    window.addEventListener('message', async (e) => {
-      if (e.data?.spotify_token) {
-        spotifyToken = e.data.spotify_token;
-        setStatus('מחובר לספוטיפיי, מחפש שירים…', 'success');
-        // עדכן Spotify ID לכל השירים בהיסטוריה
-        for (const song of songHistory) {
-          if (!song.spotifyId) {
-            try {
-              const sRes = await fetch(`${PROXY}/spotify/search?token=${encodeURIComponent(spotifyToken)}&title=${encodeURIComponent(song.title)}&artist=${encodeURIComponent(song.artist)}`);
-              const sData = await sRes.json();
-              if (sData.id) song.spotifyId = sData.id;
-            } catch (e) {}
-          }
-        }
+    // קבל token מ-Spotify redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('spotify_token')) {
+      spotifyToken = urlParams.get('spotify_token');
+      window.history.replaceState({}, '', '/');
+      // שחזר היסטוריה מ-sessionStorage
+      const saved = sessionStorage.getItem('songHistory');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        parsed.forEach(s => songHistory.push(s));
+        sessionStorage.removeItem('songHistory');
         renderHistory();
-        setStatus('מחובר לספוטיפיי ✓', 'success');
-        if (pendingPlaylist) { pendingPlaylist = false; savePlaylist(); }
+        // חפש Spotify IDs לכל השירים
+        (async () => {
+          setStatus('מחפש שירים בספוטיפיי…', 'success');
+          for (const song of songHistory) {
+            if (!song.spotifyId) {
+              try {
+                const sRes = await fetch(`${PROXY}/spotify/search?token=${encodeURIComponent(spotifyToken)}&title=${encodeURIComponent(song.title)}&artist=${encodeURIComponent(song.artist)}`);
+                const sData = await sRes.json();
+                if (sData.id) song.spotifyId = sData.id;
+              } catch (e) {}
+            }
+          }
+          renderHistory();
+          setStatus('מחובר לספוטיפיי ✓', 'success');
+          savePlaylist();
+        })();
       }
-    });
+    }
 
     function setStatus(msg, type = '') {
       const el = document.getElementById('statusBar');
@@ -287,8 +297,8 @@
 
     async function savePlaylist() {
       if (!spotifyToken) {
-        pendingPlaylist = true;
-        window.open(`${PROXY}/spotify/login`, 'spotify-login', 'width=500,height=700');
+        sessionStorage.setItem('songHistory', JSON.stringify(songHistory));
+        window.location.href = `${PROXY}/spotify/login`;
         return;
       }
       const selected = songHistory.filter(s => s.selected && s.spotifyId);
